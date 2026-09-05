@@ -460,8 +460,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var unreadCount = 0                 // 未读消息数（弹窗红点显示，点击清零）
     var statusItem: NSStatusItem?
     var soundOn = UserDefaults.standard.bool(forKey: "soundOn")
-    var soundName = UserDefaults.standard.string(forKey: "soundName") ?? "dingdong"
-    let soundList = ["dingdong", "Glass", "Ping", "Purr", "Pop", "Submarine", "Funk", "Sosumi", "Tink", "Basso", "Blow", "Bottle", "Frog", "Hero", "Morse"]
+    var soundName = UserDefaults.standard.string(forKey: "soundName") ?? "Sent"
+    let soundList = ["Sent", "dingdong", "Glass", "Ping", "Purr", "Pop", "Submarine", "Funk", "Sosumi", "Tink", "Basso", "Blow", "Bottle", "Frog", "Hero", "Morse"]
 
     var libaimBase: String {
         NSHomeDirectory() + "/Library/Application Support/Aliworkbench/IMServiceDir/MessageSDK/libaim"
@@ -552,10 +552,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         soundToggle.target = self
         soundToggle.state = soundOn ? .on : .off
         m.addItem(soundToggle)
-        let soundSel = NSMenuItem(title: "提醒铃声：\(soundName == "dingdong" ? "千牛叮咚" : soundName)", action: nil, keyEquivalent: "")
+        let soundSel = NSMenuItem(title: "提醒铃声：\(soundDisplayName(soundName))", action: nil, keyEquivalent: "")
         let sMenu = NSMenu()
         for s in soundList {
-            let it = NSMenuItem(title: s == "dingdong" ? "千牛叮咚（默认）" : s, action: #selector(selectSound(_:)), keyEquivalent: "")
+            let it = NSMenuItem(title: soundDisplayName(s), action: #selector(selectSound(_:)), keyEquivalent: "")
             it.target = self
             it.state = (s == soundName) ? .on : .off
             it.representedObject = s
@@ -600,9 +600,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func soundDisplayName(_ s: String) -> String {
+        switch s {
+        case "Sent": return "千牛来消息声（默认）"
+        case "dingdong": return "千牛叮咚"
+        default: return s
+        }
+    }
+
     func playNotificationSound() {
         guard soundOn else { return }
-        // "dingdong" 为千牛内置来消息铃声, 已复制进本 App Resources
+        // "Sent"/"dingdong" 为千牛内置铃声, 已复制进本 App Resources
         if let s = NSSound(named: soundName) { s.play(); return }
         NSSound(named: "Glass")?.play()
     }
