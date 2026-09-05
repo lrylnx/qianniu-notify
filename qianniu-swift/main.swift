@@ -699,6 +699,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         cancelMonitoring()
         burstAccounts.removeAll()
         pendingSince = nil
+        // 关键: 绑定事件回调(缺失会导致回调触发但事件被丢弃)
+        watcher.onEvents = { [weak self] paths in self?.handleEvents(paths) }
         watcherActive = watcher.start(paths: [libaimBase])
         if !watcherActive { lastWriteFallbackInit() }
         let t = Timer(timeInterval: 0.3, repeats: true) { [weak self] _ in self?.tick() }
@@ -783,8 +785,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if !changed.isEmpty { handleEvents(Array(changed)) }  // 复用事件入口(路径仅作日志)
             fallbackStates = cur
         }
-        // 消息写入停止 settle 秒后决策
-        guard let lw = lastWrite else { return }
+        // 消息写入停止 settle 秒后决策(必须有未决突发, 否则会用空列表无限重复决策)
+        guard pendingSince != nil, let lw = lastWrite else { return }
         let now = Date()
         guard now.timeIntervalSince(lw) >= settle else { return }
         let accounts = burstAccounts.sorted()
