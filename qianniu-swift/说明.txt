@@ -1,0 +1,41 @@
+千牛新消息提醒 V2（ZCode 优化版，基于 DeepSeek V1）
+====================================================
+
+【这是什么】
+  原生 Swift/AppKit 菜单栏应用。监控千牛消息库 im.sqlite-wal 的写入
+  （每条消息到达必写、空闲完全安静，已实测验证），千牛不在前台时
+  右上角弹浅色卡片弹窗 + 提示音。
+
+【V2 相对 V1 的改进】
+  1. 点击弹窗 → 直接打开千牛主聊天窗口（V1 只激活应用，会被千牛自带的
+     悬浮"未读提醒"抢占，需要再点一次；V2 发送 reopen 事件（等同点
+     Dock 图标）恢复主窗口，并尝试用辅助功能 AXRaise 把主窗口顶到最前）
+     ※ 可选增强：系统设置→隐私与安全性→辅助功能→添加"千牛提醒"，
+       切窗更稳；不授权也能用（自动降级为激活应用）
+  2. 修复：记住弹窗位置后，多条通知全部叠在同一点的 bug
+  3. 修复：换显示器后记住的位置跑到屏幕外（现在自动钳制到可见区域）
+  4. 修复：开机自启配置残留旧路径时自动更新（迁移电脑后不会启动失效项）
+  5. 菜单栏新增"打开千牛窗口"
+
+【保留的功能】
+  - 多账号监控（自动发现 libaim 下所有登录店铺）
+  - 千牛在前台时静默；15 秒冷却防连发刷屏；0.6 秒合并连发
+  - 弹窗可拖动、记住位置、6 秒自动淡出、多条向上堆叠
+  - 菜单栏铃铛：暂停/恢复、测试弹窗、开关声音、14 种系统铃声、
+    开关开机自启、打开千牛窗口、退出
+  - 手动测试：终端执行 echo test > ~/.qn_test 即弹一条测试窗
+
+【文件】
+  main.swift        V2 源码
+  main_v1_备份.swift  DeepSeek 原版备份
+  千牛提醒.app        通用二进制（arm64+x86_64），拷到任何 Mac 双击即用
+                    （新 Mac 需已安装千牛并登录）
+
+【重新编译】
+  cd ~/Documents/qianniu-swift
+  xcrun swiftc -O -target arm64-apple-macosx13.0  -o q-a main.swift -framework Cocoa
+  xcrun swiftc -O -target x86_64-apple-macosx13.0 -o q-i main.swift -framework Cocoa
+  lipo -create -output QianniuNotify q-a q-i
+  cp QianniuNotify 千牛提醒.app/Contents/MacOS/ && chmod +x 千牛提醒.app/Contents/MacOS/QianniuNotify
+
+【日志】~/Library/Logs/qianniu_notify.log

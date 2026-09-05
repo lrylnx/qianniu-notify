@@ -1,0 +1,65 @@
+千牛新消息提醒 - 最新版（原生 macOS 应用）
+==========================================
+
+【V4 更新（2026-09-05 晚）—— 弹窗常驻 + 未读红点 + 修复启动崩溃】
+  1. 弹窗不再自动消失：只有点击才消失并打开千牛；按住拖动可移动，松手后保留
+  2. 弹窗右上角红色徽章显示未读消息数；弹窗已在屏时新消息只累加计数，不再弹新窗
+     （多条消息会合并显示所有账号）；点击后未读清零
+  3. 修复 V3 严重崩溃：FSEvents 回调数组桥接方式错误，导致启动约 2 秒后必崩
+     （这也是之前"怎么还是老行为"的原因——实际一直在跑 /Applications 里的旧版）
+  4. 修复点击误判：按窗口实际位移 <10px 判定为点击，鼠标轻微抖动不再吃掉点击
+  5. 切千牛"确认-重试"：点击后最多 6 轮校验前台，没到前台交替 activate/reopen 重试
+  6. 三份 .app 已同步更新：/Applications/千牛提醒.app、Documents/千牛提醒功能/千牛提醒.app、
+     qianniu-swift/千牛提醒.app（建议只用 /Applications 这份，避免新旧混淆）
+  7. 提升点击可靠性（推荐，一次性）：系统设置 → 隐私与安全性 → 辅助功能 → 勾选"千牛提醒"
+     → 授权后点击弹窗可把千牛主聊天窗口精确顶到最前
+
+【V3 更新（2026-09-05）—— 点击可靠性 + 事件驱动监控】
+  1. 修复误判吃点击：单击时鼠标轻微抖动不再被当成"拖动"
+  2. 切千牛改为"确认-重试"：最多 6 轮校验前台状态
+  3. 消息监控改为 FSEvents 事件驱动，几乎零 CPU（失败自动回退轮询）
+  4. 首次启动提示授权"辅助功能"（菜单栏铃铛 → "辅助功能授权" 可随时打开设置页）
+  源码：qianniu-swift/main.swift（旧版备份 main_v1_备份.swift / main_v2_备份.swift）
+
+【这是一个自包含、可双击、可分享的 App】
+  文件：千牛提醒.app（在 本 文件夹内）
+  - 原生 Swift/AppKit 编写，通用二进制（Apple 芯片 + Intel 都能跑）
+  - 自带图标；无 Dock 图标；只在菜单栏显示【黑白铃铛】图标
+  - 不依赖 Python、不依赖任何安装包，拷贝整个 .app 文件夹即可用
+
+【功能】
+  - 监控千牛消息库写入（libaim/<账号>@cntaobao/database/im.sqlite-wal）
+  - 千牛在后台时，右上角弹【千牛浅色卡片风】通知
+  - 点击弹窗 → 切换到千牛；按住拖动可移动并记住位置；拖动中不消失，松手后 3 秒淡出
+  - 千牛在前台时静默
+
+【菜单栏图标（点一下）】
+  - 开始提醒 / 暂停提醒        （暂停时图标变"静音铃铛"）
+  - 立即测试弹窗
+  - 播放提醒声音  → 可开关；勾选后弹窗额外播一声系统铃声
+  - 提醒铃声：Glass → 可换（Glass/Ping/Purr/Pop/Submarine/Funk/Sosumi/Tink/Basso/Blow/Bottle/Frog/Hero/Morse）
+  - 开启/关闭开机自启
+  - 退出
+
+【怎么用】
+  - 启动：双击 千牛提醒.app
+  - 暂停/恢复、开关声音、切铃声、自启：点菜单栏铃铛图标
+  - 手动测试：菜单栏图标 → 立即测试弹窗
+
+【装机 / 换电脑 / 分享】
+  1. 把整个【千牛提醒.app】文件夹拷过去（U盘 / 微信 / AirDrop）
+  2. 放到任意位置（建议 /Applications）
+  3. 双击打开；首次如被拦：右键 → 打开 → 再点"打开"
+  4. 自动读本机千牛消息库、自动注册开机自启（用当前位置，移动后重开一次即更新）
+
+【源码 / 重新编译（可选）】
+  Swift 源码：~/Documents/qianniu-swift/main.swift
+  重新编译（生成通用二进制，最低 macOS 13.0）：
+    cd ~/Documents/qianniu-swift
+    xcrun swiftc -O -target arm64-apple-macosx13.0  -o q-a main.swift -framework Cocoa
+    xcrun swiftc -O -target x86_64-apple-macosx13.0  -o q-i main.swift -framework Cocoa
+    lipo -create -output QianniuNotify q-a q-i
+    cp QianniuNotify ~/Documents/千牛提醒功能/千牛提醒.app/Contents/MacOS/ && chmod +x ...
+  然后结束旧进程、open 该 App 重启。
+
+日志（排查问题）：~/Library/Logs/qianniu_notify.log
