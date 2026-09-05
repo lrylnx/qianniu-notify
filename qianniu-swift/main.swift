@@ -456,6 +456,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var lastWrite: Date?
     var lastNotify: Date = .distantPast
     var burstAccounts = Set<String>()
+    var burstFiles = Set<String>()      // 本次突发中触发决策的消息库文件(诊断用)
+    var burstIgnored = Set<String>()    // 被过滤掉的非消息文件(诊断用)
+    var walSizes: [String: UInt64] = [:]  // 各 wal 上次已知大小, 用于识别 checkpoint(缩小)
     var paused = false
     var unreadCount = 0                 // 未读消息数（弹窗红点显示，点击清零）
     var statusItem: NSStatusItem?
@@ -709,6 +712,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         cancelMonitoring()
         burstAccounts.removeAll()
         pendingSince = nil
+        // 初始化各 wal 大小基线(避免启动瞬间把存量当变化)
+        walSizes = snapshotFiles()
         // 关键: 绑定事件回调(缺失会导致回调触发但事件被丢弃)
         watcher.onEvents = { [weak self] paths in self?.handleEvents(paths) }
         watcherActive = watcher.start(paths: [libaimBase])
@@ -774,13 +779,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func handleEvents(_ paths: [String]) {
         var labels = Set<String>()
         for p in paths {
-            if let acc = accountFromPath(p) { labels.insert(label(forAccount: acc)) }
+            let fn = (p as NSString).lastPathComponent
+            // 只把消息库写入当作"可能的新消息"; sync(状态同步)/fts(全文索引)/cache 一律忽略
+            let isMsgDB = (fn == "im.sqlite-wal" || fn == "im.sqlite" || fn == "im.sqlite-shm")
+            if !isMsgDB { burstIgnored.insert(fn); continue }
+            // wal 缩小 = checkpoint(把已入库数据合并回主库), 不是新消息
+            if fn == "im.sqlite-wal", let st = try? FileManager.default.attributesOfItem(atPath: p),
+               let sz = (st[.size] as? NSNumber)?.uint64Value {
+                let prev = walSizes[p]
+                walSizes[p] = sz
+                if let pv = prev, sz < pv { continue }
+            }
+            if let acc = accountFromPath(p) { labels.insert(label(forAccount: acc)); burstFiles.insert(fn) }
         }
         guard !labels.isEmpty else { return }
         let now = Date()
         lastWrite = now
         if pendingSince == nil { pendingSince = now }
         burstAccounts.formUnion(labels)
+    }
+
+    // 收集所有账号消息库 wal 的当前大小
+    func snapshotFiles() -> [String: UInt64] {
+        var out: [String: UInt64] = [:]
+        let fm = FileManager.default
+        for p in walPaths() {
+            if let st = try? fm.attributesOfItem(atPath: p), let sz = (st[.size] as? NSNumber)?.uint64Value {
+                out[p] = sz
+            }
+        }
+        return out
     }
 
     func tick() {
@@ -800,16 +828,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let now = Date()
         guard now.timeIntervalSince(lw) >= settle else { return }
         let accounts = burstAccounts.sorted()
+        let diag = "文件:\(burstFiles.sorted()) 过滤:\(burstIgnored.sorted())"
         if qianniuFrontmost() {
-            log("写入结束(\(accounts)) 千牛在前台→静默")
+            log("写入结束(\(accounts)) \(diag) 千牛在前台→静默")
         } else if now.timeIntervalSince(lastNotify) < cooldown {
-            log("写入结束(\(accounts)) 冷却期→跳过")
+            log("写入结束(\(accounts)) \(diag) 冷却期→跳过")
         } else {
+            log("弹出决策(\(accounts)) \(diag)")
             showPopup(accounts: accounts)
             lastNotify = now
         }
         pendingSince = nil
         burstAccounts.removeAll()
+        burstFiles.removeAll()
+        burstIgnored.removeAll()
     }
 
     func qianniuFrontmost() -> Bool {
